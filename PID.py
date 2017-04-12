@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
 import ev3dev.ev3 as ev3
 from ev3dev import *
-import time
+# import time
 from datetime import timedelta
 import datetime
-import numpy as np
 
 
 def getGyroRate(readings):
     mean = 0
     for i in range(1, readings):
         mean = mean + gyro.rate
-    mean = mean/readings
+    mean = mean / readings
     return mean
 
 
 def calibrate_gyro(loops):
     mean = 0
     for i in range(1, loops):
-        mean = mean + getGyroRate(5);
-    mean = mean/loops
+        mean = mean + getGyroRate(5)
+    mean = mean / loops
     return mean
 
 
@@ -35,21 +34,21 @@ def calibrate_gyro(loops):
 
 # Constants
 DT = timedelta(seconds=(0.022 - 0.002))  # Loop time (s), inc. overhead
-RADIUS = 0.021 # Radius (metres)
+RADIUS = 0.021  # Radius (metres)
 SPEED_ARR_LENGTH = 7
 MAX_ABS_PWM = 100
 
 # Data arrays
-speedArray = np.zeros((SPEED_ARR_LENGTH,), dtype=np.int16)
+speed_arr = [0] * SPEED_ARR_LENGTH
 
 # PID Parameters
 kp = 1
 ki = 0
 kd = 0
-kAngle = 1
-kRate = 1
-kPosition = 1
-kSpeed = 1
+k_angle = 1
+k_rate = 1
+k_pos = 1
+k_speed = 1
 max_abs_control_val = 1000
 
 # Motors and Sensors
@@ -71,7 +70,8 @@ gyro = ev3.GyroSensor()
 gyro_rate_mean = calibrate_gyro(20)
 gyro_central = gyro.angle
 
-# Set motor position to zero and allow on-the-fly speed updates using duty_cycle_sp
+# Set motor position to zero
+# Allow on-the-fly speed updates using duty_cycle_sp
 motor_l.command('reset')
 motor_l.command('run-direct')
 motor_r.command('reset')
@@ -91,16 +91,16 @@ while(True):
     rate = getGyroRate(5)
     position = (motor_l.position + motor_r.position) / 2
     # position = ((motor_l.position + motor_r.position)/2.0)/57.3
-    speed = (motor_l.speed + motor_r.speed)/2
+    speed = (motor_l.speed + motor_r.speed) / 2
 
     # PID control
     control_val = 0
 
     # Rate, pos and speed all have set point 0
-    cur_error = ((kAngle * (angle - gyro_central)) +
-                 (kRate * rate) +
-                 (kPosition * position) +
-                 (kSpeed * speed))
+    cur_error = ((k_angle * (angle - gyro_central)) +
+                 (k_rate * rate) +
+                 (k_pos * position) +
+                 (k_speed * speed))
     sum_error += cur_error
 
     # TODO integral windup gaurd?
@@ -109,10 +109,12 @@ while(True):
     control_val += ki * sum_error  # Integral term
     control_val += kd * (cur_error - prev_error)  # Derivative term
 
-    # TODO could be removed if precision works out for  control values as [-100, 100]
+    # TODO could be removed if precision works out for control values as
+    # [-100, 100]
     control_val = control_val * (MAX_ABS_PWM / max_abs_control_val)
 
-    new_speed = np.clip(control_val, -MAX_ABS_PWM, MAX_ABS_PWM)
+    # Clip control value to +/- MAX_ABS_PWM
+    new_speed = max(-MAX_ABS_PWM, min(control_val, MAX_ABS_PWM))
 
     motor_l.duty_cycle_sp = new_speed
     motor_r.duty_cycle_sp = new_speed
